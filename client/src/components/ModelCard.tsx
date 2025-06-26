@@ -89,6 +89,17 @@ export default function ModelCard({ model, onUseModel }: ModelCardProps) {
 
     const config = statusConfig[model.status] || { variant: 'secondary', label: 'Unknown' };
     
+    if (model.status === 'training') {
+      return (
+        <Badge className="bg-blue-500 text-white animate-pulse">
+          <div className="flex items-center">
+            <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent mr-2"></div>
+            {config.label}
+          </div>
+        </Badge>
+      );
+    }
+    
     if (model.status === 'trained') {
       return (
         <Badge className="bg-sustainability text-white">
@@ -133,7 +144,18 @@ export default function ModelCard({ model, onUseModel }: ModelCardProps) {
             Use Model
           </Button>
           
-          {model.status !== 'training' && (
+          {model.status === 'training' ? (
+            <div className="w-full bg-blue-50 border border-blue-200 rounded-md p-3 text-center">
+              <div className="flex items-center justify-center mb-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent mr-2"></div>
+                <span className="text-sm font-medium text-blue-700">Training in Progress</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div className="bg-blue-500 h-2 rounded-full animate-pulse" style={{width: '60%'}}></div>
+              </div>
+              <p className="text-xs text-blue-600 mt-1">This may take a few minutes...</p>
+            </div>
+          ) : (
             <Button
               variant="outline"
               size="sm"
@@ -141,7 +163,16 @@ export default function ModelCard({ model, onUseModel }: ModelCardProps) {
               disabled={trainMutation.isPending}
               className="w-full"
             >
-              {model.status === 'trained' ? 'Retrain' : 'Train'} Model
+              {trainMutation.isPending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-500 border-t-transparent mr-2"></div>
+                  Starting Training...
+                </>
+              ) : (
+                <>
+                  {model.status === 'trained' ? 'Retrain' : 'Train'} Model
+                </>
+              )}
             </Button>
           )}
         </div>

@@ -12,6 +12,8 @@ import {
   type ModelStatus,
   type InsertModelStatus
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
@@ -33,6 +35,114 @@ export interface IStorage {
   getModelStatus(modelType: string): Promise<ModelStatus | undefined>;
   upsertModelStatus(status: InsertModelStatus): Promise<ModelStatus>;
   getAllModelStatuses(): Promise<ModelStatus[]>;
+}
+
+export class DatabaseStorage implements IStorage {
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async createModelPrediction(prediction: InsertModelPrediction): Promise<ModelPrediction> {
+    const [newPrediction] = await db
+      .insert(modelPredictions)
+      .values(prediction)
+      .returning();
+    return newPrediction;
+  }
+
+  async getModelPredictions(modelType?: string): Promise<ModelPrediction[]> {
+    if (modelType) {
+      return await db.select().from(modelPredictions).where(eq(modelPredictions.modelType, modelType));
+    }
+    return await db.select().from(modelPredictions);
+  }
+
+  async createBatchJob(job: InsertBatchJob): Promise<BatchJob> {
+    const [newJob] = await db
+      .insert(batchJobs)
+      .values(job)
+      .returning();
+    return newJob;
+  }
+
+  async getBatchJob(id: number): Promise<BatchJob | undefined> {
+    const [job] = await db.select().from(batchJobs).where(eq(batchJobs.id, id));
+    return job || undefined;
+  }
+
+  async updateBatchJob(id: number, updates: Partial<BatchJob>): Promise<BatchJob | undefined> {
+    const [updatedJob] = await db
+      .update(batchJobs)
+      .set(updates)
+      .where(eq(batchJobs.id, id))
+      .returning();
+    return updatedJob || undefined;
+  }
+
+  async getBatchJobs(): Promise<BatchJob[]> {
+    return await db.select().from(batchJobs).orderBy(desc(batchJobs.createdAt));
+  }
+
+  async getModelStatus(modelType: string): Promise<ModelStatus | undefined> {
+    const [status] = await db.select().from(modelStatus).where(eq(modelStatus.modelType, modelType));
+    return status || undefined;
+  }
+
+  async upsertModelStatus(statusData: InsertModelStatus): Promise<ModelStatus> {
+    const existing = await this.getModelStatus(statusData.modelType);
+    
+    if (existing) {
+      const [updated] = await db
+        .update(modelStatus)
+        .set(statusData)
+        .where(eq(modelStatus.modelType, statusData.modelType))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(modelStatus)
+        .values(statusData)
+        .returning();
+      return created;
+    }
+  }
+
+  async getAllModelStatuses(): Promise<ModelStatus[]> {
+    const statuses = await db.select().from(modelStatus);
+    
+    // Initialize default statuses if none exist
+    if (statuses.length === 0) {
+      const modelTypes = ['packaging', 'carbon', 'product', 'esg'];
+      const defaultStatuses = await Promise.all(
+        modelTypes.map(type => 
+          this.upsertModelStatus({
+            modelType: type,
+            status: 'not_trained',
+            accuracy: null,
+            lastTrained: null,
+            version: '1.0'
+          })
+        )
+      );
+      return defaultStatuses;
+    }
+    
+    return statuses;
+  }
 }
 
 export class MemStorage implements IStorage {
@@ -153,4 +263,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
